@@ -5,7 +5,7 @@ inlineLogger = "1.0.3"
 junit = "5.11.4"
 logback = "1.2.11"
 netty-buffer = "4.1.116.Final"
-fourkoma = "1.2.0"
+fourkoma = "1.1.0"
 clikt = "5.0.2"
 gson = "2.11.0"
 

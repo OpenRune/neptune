@@ -11,7 +11,7 @@ dependencyResolutionManagement {
 
 pluginManagement {
     plugins {
-        kotlin("jvm") version "2.1.0"
+        kotlin("jvm") version "1.9.0"
         id("org.jmailen.kotlinter") version "5.0.1"
     }
 }
