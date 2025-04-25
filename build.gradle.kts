@@ -8,10 +8,12 @@ plugins {
     base
     kotlin("jvm")
     id("org.jmailen.kotlinter") apply false
+    id("maven-publish")
 }
 
 allprojects {
-    group = "me.filby.neptune"
+
+    group = "dev.or2"
     version = "0.0.1-SNAPSHOT"
 
     plugins.withType<BasePlugin> {
@@ -24,8 +26,8 @@ allprojects {
         configure<JavaPluginExtension> {
             withSourcesJar()
 
-            sourceCompatibility = JavaVersion.VERSION_17
-            targetCompatibility = JavaVersion.VERSION_17
+            sourceCompatibility = JavaVersion.VERSION_11
+            targetCompatibility = JavaVersion.VERSION_11
         }
     }
 
@@ -43,9 +45,13 @@ allprojects {
     tasks.withType<Test> {
         useJUnitPlatform()
     }
+
 }
 
 subprojects {
+    apply(plugin = "maven-publish")
+    apply(plugin = "java")
+
     plugins.withType<KotlinPluginWrapper> {
         apply(plugin = "org.jmailen.kotlinter")
 
@@ -60,4 +66,48 @@ subprojects {
             testRuntimeOnly(libs.junit.engine)
         }
     }
+
+    publishing {
+        publications {
+            create<MavenPublication>("mavenJava") {
+                from(components["java"])
+
+                artifactId = project.name
+
+                pom {
+                    name.set("OpenRune - ${project.name}")
+                    description.set("Module ${project.name} of the OpenRune project.")
+                    url.set("https://github.com/OpenRune")
+
+                    licenses {
+                        license {
+                            name.set("Apache-2.0")
+                            url.set("https://opensource.org/licenses/Apache-2.0")
+                        }
+                    }
+
+                    developers {
+                        developer {
+                            id.set("openrune")
+                            name.set("OpenRune Team")
+                            email.set("contact@openrune.dev")
+                        }
+                    }
+
+                    scm {
+                        connection.set("scm:git:git://github.com/OpenRune.git")
+                        developerConnection.set("scm:git:ssh://github.com/OpenRune.git")
+                        url.set("https://github.com/OpenRune")
+                    }
+                }
+            }
+        }
+
+        repositories {
+            maven {
+                url = uri("E:\\RSPS\\OpenRune\\hosting")
+            }
+        }
+    }
+
 }
