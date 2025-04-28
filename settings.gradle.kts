@@ -1,17 +1,17 @@
 rootProject.name = "neptune"
 
 dependencyResolutionManagement {
-    repositoriesMode = RepositoriesMode.FAIL_ON_PROJECT_REPOS
     repositories {
         mavenCentral()
         mavenLocal()
         maven("https://jitpack.io")
+        maven("https://raw.githubusercontent.com/OpenRune/hosting/master")
     }
 }
 
 pluginManagement {
     plugins {
-        kotlin("jvm") version "2.1.20"
+        kotlin("jvm") version "1.9.0"
         id("org.jmailen.kotlinter") version "5.0.1"
     }
 }
