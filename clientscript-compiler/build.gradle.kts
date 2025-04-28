@@ -3,7 +3,7 @@ plugins {
     kotlin("jvm")
 }
 
-version = "1.0.1-SNAPSHOT"
+version = "0.0.1-openrune"
 
 dependencies {
     api(project(":runescript-compiler")) {
@@ -11,7 +11,6 @@ dependencies {
     }
     implementation(libs.netty.buffer)
     implementation(libs.fourkoma)
-    implementation(libs.clikt)
     implementation(libs.gson)
     implementation(libs.logback)
 }

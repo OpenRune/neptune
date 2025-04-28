@@ -9,8 +9,8 @@ targeting Old School RuneScape.
 
 ## Requirements
 
-- Java 17
-- Kotlin 2.1.0
+- Java 11
+- Kotlin 1.9.0
 
 ## Goals
 

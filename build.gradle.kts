@@ -13,8 +13,8 @@ plugins {
 
 allprojects {
 
-    group = "dev.or2"
-    version = "0.0.1-SNAPSHOT"
+    group = "me.filby"
+    version = "0.0.1-openrune"
 
     plugins.withType<BasePlugin> {
         configure<BasePluginExtension> {
@@ -37,8 +37,8 @@ allprojects {
     }
 
     tasks.withType<KotlinCompile> {
-        compilerOptions {
-            jvmTarget = JvmTarget.JVM_11
+        kotlinOptions {
+            jvmTarget = "11"
         }
     }
 
