@@ -35,7 +35,7 @@ object ClientScripts {
         val features = config.features
 
         val mapper = SymbolMapper()
-        val writer = OpenRuneScriptWriter(mapper)
+        val writer = OpenRuneScriptWriter(mapper, features)
 
         // load commands and clientscript id mappings
         loadSpecialSymbols(symbolPaths, mapper)
@@ -75,6 +75,9 @@ private fun loadConfig(configPath: Path, clientVersion : Int): ClientScriptCompi
     val defaultFeatures = ClientScriptCompilerFeatureSet(
         dbFindReturnsCount = clientVersion >= 228,
         ccCreateAssertNewArg = clientVersion >= 230,
+        prefixPostfixExpressions = false,
+        arraysV2 = clientVersion >= 231,
+        simplifiedTypeCodes = clientVersion >= 231,
     )
     val tomlMapper = tomlMapper {
         // these defaults are required for
@@ -93,6 +96,9 @@ private fun loadConfig(configPath: Path, clientVersion : Int): ClientScriptCompi
         mapping<ClientScriptCompilerFeatureSet>(
             "db_find_returns_count" to "dbFindReturnsCount",
             "cc_create_optional_assert_new" to "ccCreateAssertNewArg",
+            "prefix_postfix_expressions" to "prefixPostfixExpressions",
+            "arrays_v2" to "arraysV2",
+            "simplified_type_codes" to "simplifiedTypeCodes",
         )
         mapping<BinaryFileWriterConfig>("output" to "outputPath")
     }

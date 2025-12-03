@@ -2,6 +2,7 @@ package dev.openrune.clientscript.compiler
 
 import io.netty.buffer.ByteBuf
 import io.netty.buffer.ByteBufAllocator
+import me.filby.neptune.clientscript.compiler.configuration.ClientScriptCompilerFeatureSet
 import me.filby.neptune.clientscript.compiler.writer.BinaryScriptWriter
 import me.filby.neptune.runescript.compiler.codegen.script.RuneScript
 import java.io.ByteArrayOutputStream
@@ -17,8 +18,9 @@ data class ScriptEntry(
  */
 class OpenRuneScriptWriter(
     idProvider: IdProvider,
+    features: ClientScriptCompilerFeatureSet,
     allocator: ByteBufAllocator = ByteBufAllocator.DEFAULT,
-) : BinaryScriptWriter(idProvider, allocator) {
+) : BinaryScriptWriter(idProvider, features, allocator) {
 
     val scripts = emptyList<ScriptEntry>().toMutableList()
 
