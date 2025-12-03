@@ -14,7 +14,7 @@ plugins {
 allprojects {
 
     group = "me.filby"
-    version = "0.0.1-openrune"
+    version = "0.0.3-openrune"
 
     plugins.withType<BasePlugin> {
         configure<BasePluginExtension> {

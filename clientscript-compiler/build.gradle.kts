@@ -3,8 +3,6 @@ plugins {
     kotlin("jvm")
 }
 
-version = "0.0.1-openrune"
-
 dependencies {
     api(project(":runescript-compiler")) {
         exclude("com.ibm.icu", "icu4j")
