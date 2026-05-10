@@ -88,7 +88,7 @@ import org.antlr.v4.runtime.Recognizer
 
 /**
  * An implementation of [AstVisitor] that implements all remaining semantic/type
- * checking required to safely build scripts. This implementation assumes [PreTypeChecking]
+ * checking required to safely build scripts. This implementation assumes [ScriptRegistration]
  * is run beforehand.
  */
 public class TypeChecking(
@@ -140,7 +140,7 @@ public class TypeChecking(
     /**
      * Sets the active [table] to [newTable] and runs [block] then sets [table] back to what it was originally.
      */
-    private inline fun scoped(newTable: SymbolTable, block: () -> Unit) {
+    private inline fun scoped(newTable: SymbolTable = table.createSubTable(), block: () -> Unit) {
         val oldTable = table
         table = newTable
         block()
@@ -161,7 +161,7 @@ public class TypeChecking(
     }
 
     override fun visitBlockStatement(blockStatement: BlockStatement) {
-        scoped(blockStatement.scope) {
+        scoped {
             // visit all statements
             blockStatement.statements.visit()
         }
@@ -240,13 +240,24 @@ public class TypeChecking(
     }
 
     override fun visitSwitchStatement(switchStatement: SwitchStatement) {
-        val expectedType = switchStatement.type
+        val typeName = switchStatement.typeToken.text.removePrefix("switch_")
+        val type = typeManager.findOrNull(typeName) ?: MetaType.Error
+
+        // notify invalid type
+        if (type == MetaType.Error) {
+            switchStatement.typeToken.reportError(DiagnosticMessage.GENERIC_INVALID_TYPE, typeName)
+        } else if (!type.options.allowSwitch) {
+            switchStatement.typeToken.reportError(DiagnosticMessage.SWITCH_INVALID_TYPE, type.representation)
+        }
+
+        // set the type which is used by the switch cases to find their expected value types
+        switchStatement.type = type
 
         // type hint the condition and visit it
         val condition = switchStatement.condition
-        condition.typeHint = expectedType
+        condition.typeHint = type
         condition.visit()
-        checkTypeMatch(condition, expectedType, condition.type)
+        checkTypeMatch(condition, type, condition.type)
 
         // TODO check for duplicate case labels (other than default)
         // visit all the cases, cases will be type checked there.
@@ -287,7 +298,7 @@ public class TypeChecking(
             checkTypeMatch(key, switchType, key.type)
         }
 
-        scoped(switchCase.scope) {
+        scoped {
             // visit the statements
             switchCase.statements.visit()
         }
@@ -926,14 +937,71 @@ public class TypeChecking(
     override fun visitIntegerLiteral(integerLiteral: IntegerLiteral) {
         val hint = integerLiteral.typeHint
 
-        // this logic is a simplified version from string literals
-        if (hint == null || hint == MetaType.Unit || typeManager.check(hint, PrimitiveType.INT)) {
-            integerLiteral.type = PrimitiveType.INT
-        } else if (hint !in LITERAL_TYPES) {
-            integerLiteral.reference = resolveSymbol(integerLiteral, integerLiteral.value.toString(), hint)
-        } else {
-            integerLiteral.type = PrimitiveType.INT
+        // allow number value to be implicitly converted to a string
+        if (hint == PrimitiveType.STRING) {
+            integerLiteral.type = PrimitiveType.STRING
+            return
         }
+
+        // allow 0 and 1 to be implicitly converted to boolean
+        if (hint == PrimitiveType.BOOLEAN && isBooleanCompatible(integerLiteral.value, integerLiteral.radix)) {
+            // we can just convert the value to an int safely since we know the value is 0 or 1.
+            integerLiteral.numberValue = integerLiteral.value.toInt()
+            integerLiteral.type = PrimitiveType.BOOLEAN
+            return
+        }
+
+        // allow number value to be a reference to a non-number type
+        if (hint != null && hint != MetaType.Error && hint != MetaType.Unit && hint !in LITERAL_TYPES) {
+            integerLiteral.reference = resolveSymbol(integerLiteral, integerLiteral.value, hint)
+            return
+        }
+
+        val type = when (hint) {
+            PrimitiveType.INT -> PrimitiveType.INT
+            PrimitiveType.LONG -> PrimitiveType.LONG
+            else -> {
+                // we default to int to give a safe fallback when the hint is invalid.
+                PrimitiveType.INT
+            }
+        }
+
+        val numericValue = parseNumericValue(integerLiteral.value, integerLiteral.radix, type)
+        if (numericValue == null) {
+            integerLiteral.reportError(DiagnosticMessage.INTEGER_VALUE_OUT_OF_RANGE, type.representation)
+            integerLiteral.type = MetaType.Error
+            return
+        }
+
+        integerLiteral.numberValue = numericValue
+        integerLiteral.type = type
+    }
+
+    /**
+     * Checks if the given [value] and [radix] can be used as a boolean.
+     */
+    private fun isBooleanCompatible(value: String, radix: Int): Boolean =
+        radix == IntegerLiteral.RADIX_DECIMAL && (value == "0" || value == "1")
+
+    /**
+     * Attempts to parse the [value] as a [Number] using the specified [radix]. The return
+     * value will be an [Int] or [Long] depending on the [type] specified.
+     *
+     * When the radix is not decimal (e.g., hexadecimal), the value is parsed as an unsigned number
+     * and then converted back to the signed target type.
+     */
+    private fun parseNumericValue(value: String, radix: Int, type: Type): Number? = when (type) {
+        PrimitiveType.INT -> if (radix == IntegerLiteral.RADIX_DECIMAL) {
+            value.toIntOrNull(radix)
+        } else {
+            value.toUIntOrNull(radix)?.toInt()
+        }
+        PrimitiveType.LONG -> if (radix == IntegerLiteral.RADIX_DECIMAL) {
+            value.toLongOrNull(radix)
+        } else {
+            value.toULongOrNull(radix)?.toLong()
+        }
+        else -> error("Unexpected type: $type")
     }
 
     override fun visitCoordLiteral(coordLiteral: CoordLiteral) {
@@ -941,7 +1009,13 @@ public class TypeChecking(
     }
 
     override fun visitBooleanLiteral(booleanLiteral: BooleanLiteral) {
-        booleanLiteral.type = PrimitiveType.BOOLEAN
+        val hint = booleanLiteral.typeHint
+
+        if (hint == PrimitiveType.STRING) {
+            booleanLiteral.type = PrimitiveType.STRING
+        } else {
+            booleanLiteral.type = PrimitiveType.BOOLEAN
+        }
     }
 
     override fun visitCharacterLiteral(characterLiteral: CharacterLiteral) {
@@ -1042,7 +1116,7 @@ public class TypeChecking(
         }
 
         // error is reported in resolveSymbol
-        val symbol = resolveSymbol(identifier, name, hint) ?: return
+        val symbol = resolveSymbol(identifier, name, hint, allowToString = true) ?: return
         if (symbol is ScriptSymbol && symbol.trigger == CommandTrigger && symbol.parameters != MetaType.Unit) {
             identifier.reportError(
                 DiagnosticMessage.GENERIC_TYPE_MISMATCH,
@@ -1102,7 +1176,7 @@ public class TypeChecking(
         fixExpression.type = variable.type
     }
 
-    private fun resolveSymbol(node: Expression, name: String, hint: Type?): Symbol? {
+    private fun resolveSymbol(node: Expression, name: String, hint: Type?, allowToString: Boolean = false): Symbol? {
         // look through the current scopes table for a symbol with the given name and type
         var symbol: Symbol? = null
         var symbolType: Type? = null
@@ -1127,7 +1201,11 @@ public class TypeChecking(
             }
         }
 
-        if (symbol == null) {
+        if (allowToString && hint == PrimitiveType.STRING && allowStringConversion(symbol)) {
+            // treat the identifier as just a string
+            node.type = PrimitiveType.STRING
+            return null
+        } else if (symbol == null) {
             // unable to resolve the symbol
             node.type = MetaType.Error
             node.reportError(DiagnosticMessage.GENERIC_UNRESOLVED_SYMBOL, name)
@@ -1146,6 +1224,12 @@ public class TypeChecking(
         node.type = symbolType
         return symbol
     }
+
+    /**
+     * Checks if the symbol reference allows being converted to just a string.
+     */
+    private fun allowStringConversion(symbol: Symbol?): Boolean =
+        !(symbol is ScriptSymbol && symbol.trigger == CommandTrigger)
 
     /**
      * Attempts to figure out the return type of [symbol].

@@ -189,6 +189,8 @@ private class CommandSymbolLoader : SymbolLoader {
         addConstant("max_32bit_int", "2147483647")
         addConstant("min_32bit_int", "-2147483648")
         addConstant("quote", "\"")
+        addConstant("false", "0")
+        addConstant("true", "1")
 
         // cyclic reference constants
         addConstant("a", "^b")
@@ -216,6 +218,7 @@ private class CommandSymbolLoader : SymbolLoader {
         addCommand("assert_not", TupleType(MetaType.Any, MetaType.Any))
         addCommand("assert_not_obj", TupleType(MetaType.Any, MetaType.Any))
         addCommand("assert_not_long", TupleType(PrimitiveType.LONG, PrimitiveType.LONG))
+        addCommand("test_return_string", returns = PrimitiveType.STRING)
     }
 
     fun SymbolTable.addCommand(name: String, parameters: Type = MetaType.Unit, returns: Type = MetaType.Unit) {

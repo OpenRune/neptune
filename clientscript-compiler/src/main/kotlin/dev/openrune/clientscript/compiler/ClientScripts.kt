@@ -99,12 +99,34 @@ private fun loadConfig(configPath: Path, clientVersion : Int): ClientScriptCompi
             "prefix_postfix_expressions" to "prefixPostfixExpressions",
             "arrays_v2" to "arraysV2",
             "simplified_type_codes" to "simplifiedTypeCodes",
+            "long_support" to "longSupport",
         )
         mapping<BinaryFileWriterConfig>("output" to "outputPath")
     }
     logger.info { "Loading configuration from $configPath." }
     return tomlMapper.decode<ClientScriptCompilerConfig>(document)
 }
+
+private fun getDefaultFeaturesForVersion(versionProperty: TomlValue?): ClientScriptCompilerFeatureSet {
+    val version = when (versionProperty) {
+        is TomlValue.Integer -> versionProperty.value.toInt()
+        null -> Integer.MIN_VALUE
+        else -> {
+            logger.error { "The 'client_version' value must be numeric." }
+            exitProcess(1)
+        }
+    }
+
+    return ClientScriptCompilerFeatureSet(
+        dbFindReturnsCount = version >= 228,
+        ccCreateAssertNewArg = version >= 230,
+        prefixPostfixExpressions = false,
+        arraysV2 = version >= 231,
+        simplifiedTypeCodes = version >= 231,
+        longSupport = version >= 237,
+    )
+}
+
 
 private fun loadSpecialSymbols(symbolsPaths: List<Path>, mapper: SymbolMapper) {
     for (symbolPath in symbolsPaths) {

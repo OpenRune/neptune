@@ -406,6 +406,7 @@ public class CodeGenerator(
     private fun resolveConstantValue(expression: Expression): Any? = when (expression) {
         is ConstantVariableExpression -> expression.subExpression?.let { resolveConstantValue(it) }
         is Identifier -> expression.reference
+        is IntegerLiteral -> expression.reference ?: expression.numberValue
         is Literal<*> -> expression.reference ?: expression.value
         else -> null
     }
@@ -727,7 +728,7 @@ public class CodeGenerator(
             when (type.baseType) {
                 BaseVarType.INTEGER -> 'i'
                 BaseVarType.STRING -> 's'
-                BaseVarType.LONG -> 'l'
+                BaseVarType.LONG -> 'Ï'
                 BaseVarType.ARRAY -> type.code
                 null -> null
             }
@@ -747,7 +748,16 @@ public class CodeGenerator(
             return
         }
 
-        instruction(Opcode.PushConstantInt, integerLiteral.value)
+        if (integerLiteral.type == PrimitiveType.STRING) {
+            instruction(Opcode.PushConstantString, integerLiteral.value)
+            return
+        }
+
+        when (val numberValue = integerLiteral.numberValue) {
+            is Int -> instruction(Opcode.PushConstantInt, numberValue)
+            is Long -> instruction(Opcode.PushConstantLong, numberValue)
+            else -> error("Number value is not an Int or Long: $numberValue")
+        }
     }
 
     override fun visitCoordLiteral(coordLiteral: CoordLiteral) {
@@ -757,6 +767,12 @@ public class CodeGenerator(
 
     override fun visitBooleanLiteral(booleanLiteral: BooleanLiteral) {
         booleanLiteral.lineInstruction()
+
+        if (booleanLiteral.type == PrimitiveType.STRING) {
+            instruction(Opcode.PushConstantString, booleanLiteral.value.toString())
+            return
+        }
+
         instruction(Opcode.PushConstantInt, if (booleanLiteral.value) 1 else 0)
     }
 
@@ -827,13 +843,17 @@ public class CodeGenerator(
     }
 
     override fun visitIdentifier(identifier: Identifier) {
+        identifier.lineInstruction()
+
         val reference = identifier.reference
-        if (reference == null) {
+        if (reference == null && identifier.type == PrimitiveType.STRING) {
+            // this is for when the identifier is just being treated as a string literal
+            instruction(Opcode.PushConstantString, identifier.text)
+            return
+        } else if (reference == null) {
             identifier.reportError(DiagnosticMessage.SYMBOL_IS_NULL)
             return
         }
-
-        identifier.lineInstruction()
 
         // add the instruction based on the reference type
         if (features.arraysV2 && reference is LocalVariableSymbol) {

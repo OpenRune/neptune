@@ -174,7 +174,7 @@ constantVariable
 
 literal
     : INTEGER_LITERAL   # IntegerLiteral
-    | HEX_LITERAL       # IntegerLiteral
+    | HEX_LITERAL       # HexLiteral
     | COORD_LITERAL     # CoordLiteral
     | BOOLEAN_LITERAL   # BooleanLiteral
     | CHAR_LITERAL      # CharacterLiteral
@@ -222,6 +222,7 @@ identifier
 // advanced identifier that allows more keywords
 advancedIdentifier
     : identifier
+    | INTEGER_LITERAL
     | IF
     | ELSE
     | WHILE

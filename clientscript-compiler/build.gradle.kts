@@ -4,12 +4,15 @@ plugins {
 }
 
 dependencies {
-    api(project(":runescript-compiler")) {
-        exclude("com.ibm.icu", "icu4j")
-    }
+    api(project(":runescript-compiler"))
     implementation(libs.netty.buffer)
     implementation(libs.fourkoma)
     implementation(libs.gson)
+    implementation(libs.clikt)
+    implementation(libs.gson) {
+        exclude("com.google.errorprone", "error_prone_annotations")
+    }
+
     implementation(libs.logback)
 }
 

@@ -4,8 +4,14 @@ dependencyResolutionManagement {
     repositories {
         mavenCentral()
         mavenLocal()
-        maven("https://jitpack.io")
         maven("https://raw.githubusercontent.com/OpenRune/hosting/master")
+        maven("https://jitpack.io") {
+            content {
+                includeModule("cc.ekblad", "4koma")
+                includeModule("cc.ekblad.konbini", "konbini")
+                includeModule("cc.ekblad.konbini", "konbini-jvm")
+            }
+        }
     }
 }
 

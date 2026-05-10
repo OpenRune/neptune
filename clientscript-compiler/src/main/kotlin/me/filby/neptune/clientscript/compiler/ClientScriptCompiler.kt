@@ -1,13 +1,13 @@
 package me.filby.neptune.clientscript.compiler
 
 import me.filby.neptune.clientscript.compiler.command.CcCreateCommandHandler
+import me.filby.neptune.clientscript.compiler.command.CcFindParamCommandHandler
 import me.filby.neptune.clientscript.compiler.command.DbFindCommandHandler
 import me.filby.neptune.clientscript.compiler.command.DbGetFieldCommandHandler
 import me.filby.neptune.clientscript.compiler.command.EnumCommandHandler
 import me.filby.neptune.clientscript.compiler.command.EnumGetInputsOutputsCommandHandler
-import me.filby.neptune.clientscript.compiler.command.IfChildrenFilterCommandHandler
-import me.filby.neptune.clientscript.compiler.command.IfFindChildCommandHandler
 import me.filby.neptune.clientscript.compiler.command.IfParamCommandHandler
+import me.filby.neptune.clientscript.compiler.command.IfQueryRefineCommandHandler
 import me.filby.neptune.clientscript.compiler.command.IfRunScriptCommandHandler
 import me.filby.neptune.clientscript.compiler.command.IfSetParamCommandHandler
 import me.filby.neptune.clientscript.compiler.command.ParamCommandHandler
@@ -32,6 +32,7 @@ import me.filby.neptune.clientscript.compiler.type.IfScriptType
 import me.filby.neptune.clientscript.compiler.type.ParamType
 import me.filby.neptune.clientscript.compiler.type.ScriptVarType
 import me.filby.neptune.runescript.compiler.ScriptCompiler
+import me.filby.neptune.runescript.compiler.type.BaseVarType
 import me.filby.neptune.runescript.compiler.type.MetaType
 import me.filby.neptune.runescript.compiler.type.PrimitiveType
 import me.filby.neptune.runescript.compiler.type.Type
@@ -61,8 +62,13 @@ class ClientScriptCompiler(
         // register types
         types.registerAll<ScriptVarType>()
         types.register("param", ParamCommandHandler.PARAM_ANY)
-        types.changeOptions("long") {
-            allowDeclaration = false
+
+        if (!features.longSupport) {
+            types.changeOptions(BaseVarType.LONG) {
+                allowDeclaration = false
+                allowSwitch = false
+                allowDeclaration = false
+            }
         }
 
         // special types for commands
@@ -111,14 +117,15 @@ class ClientScriptCompiler(
         addDynamicCommandHandler("nc_param", ParamCommandHandler(ScriptVarType.NPC))
         addDynamicCommandHandler("lc_param", ParamCommandHandler(ScriptVarType.LOC))
         addDynamicCommandHandler("struct_param", ParamCommandHandler(ScriptVarType.STRUCT))
+        addDynamicCommandHandler("inv_param", ParamCommandHandler(ScriptVarType.INV))
         addDynamicCommandHandler("if_param", IfParamCommandHandler(cc = false))
         addDynamicCommandHandler("cc_param", IfParamCommandHandler(cc = true), dot = true)
         addDynamicCommandHandler("if_setparam", IfSetParamCommandHandler(cc = false))
         addDynamicCommandHandler("cc_setparam", IfSetParamCommandHandler(cc = true), dot = true)
 
         addDynamicCommandHandler("if_runscript*", IfRunScriptCommandHandler())
-        addDynamicCommandHandler("if_find_child", IfFindChildCommandHandler(), dot = true)
-        addDynamicCommandHandler("if_children_filter", IfChildrenFilterCommandHandler())
+        addDynamicCommandHandler("cc_find_param", CcFindParamCommandHandler(), dot = true)
+        addDynamicCommandHandler("if_query_refine", IfQueryRefineCommandHandler())
 
         if (features.dbFindReturnsCount) {
             addDynamicCommandHandler("db_find", DbFindCommandHandler(true))
@@ -175,11 +182,11 @@ class ClientScriptCompiler(
         addSymLoader("chatcat", ScriptVarType.CHATCAT)
         addSymLoader("chatphrase", ScriptVarType.CHATPHRASE)
         addSymLoader("clientinterface", ScriptVarType.CLIENTINTERFACE)
-        addSymLoader("component", ScriptVarType.COMPONENT)
+        addSymLoader("component", ScriptVarType.COMPONENT, idSupplier = ::parseComponentId)
         addSymLoader("controller", ScriptVarType.CONTROLLER)
         addSymLoader("cursor", ScriptVarType.CURSOR)
         addSymLoader("cutscene", ScriptVarType.CUTSCENE)
-        addSymLoader("dbcolumn") { DbColumnType(it) }
+        addSymLoader("dbcolumn", typeSupplier = { DbColumnType(it) }, idSupplier = ::parseDbColumnId)
         addSymLoader("dbrow", ScriptVarType.DBROW)
         addSymLoader("dbtable", ScriptVarType.DBTABLE)
         addSymLoader("enum", ScriptVarType.ENUM)
@@ -189,7 +196,7 @@ class ClientScriptCompiler(
         addSymLoader("hitmark", ScriptVarType.HITMARK)
         addSymLoader("hunt", ScriptVarType.HUNT)
         addSymLoader("idkit", ScriptVarType.IDKIT)
-        addSymLoader("if_script") { IfScriptType(it) }
+        addSymLoader("if_script", typeSupplier = { IfScriptType(it) })
         addSymLoader("interface", ScriptVarType.INTERFACE)
         addSymLoader("inv", ScriptVarType.INV)
         addSymLoader("jingle", ScriptVarType.JINGLE)
@@ -206,7 +213,7 @@ class ClientScriptCompiler(
         addSymLoader("npc_stat", ScriptVarType.NPC_STAT)
         addSymLoader("obj", ScriptVarType.NAMEDOBJ)
         addSymLoader("overlayinterface", ScriptVarType.OVERLAYINTERFACE)
-        addSymLoader("param") { ParamType(it) }
+        addSymLoader("param", typeSupplier = { ParamType(it) })
         addSymLoader("quest", ScriptVarType.QUEST)
         addSymLoader("seq", ScriptVarType.SEQ)
         addSymLoader("gamelogevent", ScriptVarType.GAMELOGEVENT)
@@ -222,14 +229,41 @@ class ClientScriptCompiler(
         addSymLoader("texture", ScriptVarType.TEXTURE)
         addSymLoader("toplevelinterface", ScriptVarType.TOPLEVELINTERFACE)
         addSymLoader("varbit", VarBitType)
-        addSymLoader("varc") { VarClientType(it) }
-        addSymLoader("varclan") { VarClanType(it) }
-        addSymLoader("varclansetting") { VarClanSettingsType(it) }
-        addSymLoader("varcstr") { VarClientType(PrimitiveType.STRING) }
-        addSymLoader("varp") { VarPlayerType(it) }
+        addSymLoader("varc", typeSupplier = { VarClientType(it) })
+        addSymLoader("varclan", typeSupplier = { VarClanType(it) })
+        addSymLoader("varclansetting", typeSupplier = { VarClanSettingsType(it) })
+        addSymLoader("varcstr", typeSupplier = { VarClientType(PrimitiveType.STRING) })
+        addSymLoader("varp", typeSupplier = { VarPlayerType(it) })
         addSymLoader("vorbis", ScriptVarType.VORBIS)
         addSymLoader("wma", ScriptVarType.MAPAREA)
         addSymLoader("writeinv", ScriptVarType.WRITEINV)
+    }
+
+    /**
+     * Parses a component id from `<ifid>:<comid>` or just `<comid>` format.
+     */
+    private fun parseComponentId(str: String): Int {
+        val parts = str.split(":", limit = 2)
+        if (parts.size == 1) {
+            return parts[0].toInt()
+        }
+        val ifid = parts[0].toInt()
+        val comid = parts[1].toInt()
+        return (ifid shl 16) or comid
+    }
+
+    /**
+     * Parses a dbcolumn id from `<table>:<column>` or `<table>:<column>:<tuple>` format.
+     */
+    private fun parseDbColumnId(str: String): Int {
+        val parts = str.split(":", limit = 3)
+        if (parts.size == 1) {
+            return parts[0].toInt()
+        }
+        val table = parts[0].toInt()
+        val column = parts[1].toInt()
+        val tuple = parts.getOrNull(2)?.toInt() ?: -1
+        return (table shl 12) or (column shl 4) or (tuple + 1 and 0xf)
     }
 
     /**
@@ -261,19 +295,23 @@ class ClientScriptCompiler(
     /**
      * Helper for loading external symbols from `sym` files with a specific [type].
      */
-    private fun addSymLoader(name: String, type: Type) {
-        addSymLoader(name) { type }
+    private fun addSymLoader(name: String, type: Type, idSupplier: (str: String) -> Int = { str -> str.toInt() }) {
+        addSymLoader(name = name, typeSupplier = { type }, idSupplier)
     }
 
     /**
      * Helper for loading external symbols from `sym` files with subtypes.
      */
-    private fun addSymLoader(name: String, typeSuppler: (subTypes: Type) -> Type) {
+    private fun addSymLoader(
+        name: String,
+        typeSupplier: (subTypes: Type) -> Type,
+        idSupplier: (str: String) -> Int = { str -> str.toInt() },
+    ) {
         for (symbolPath in symbolPaths) {
             // look for {symbol_path}/{name}.sym
             val typeFile = symbolPath.resolve("$name.sym")
             if (typeFile.exists()) {
-                addSymbolLoader(TsvSymbolLoader(mapper, typeFile, typeSuppler))
+                addSymbolLoader(TsvSymbolLoader(mapper, typeFile, typeSupplier, idSupplier))
             }
 
             // look for {symbol_path}/{name}/**.sym
@@ -284,7 +322,7 @@ class ClientScriptCompiler(
                     .walkTopDown()
                     .filter { it.isFile && it.extension == "sym" }
                 for (file in files) {
-                    addSymbolLoader(TsvSymbolLoader(mapper, file.toPath(), typeSuppler))
+                    addSymbolLoader(TsvSymbolLoader(mapper, file.toPath(), typeSupplier, idSupplier))
                 }
             }
         }
