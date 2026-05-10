@@ -14,7 +14,7 @@ plugins {
 allprojects {
 
     group = "me.filby"
-    version = "0.0.3-openrune"
+    version = "0.0.4-openrune"
 
     plugins.withType<BasePlugin> {
         configure<BasePluginExtension> {
@@ -36,9 +36,9 @@ allprojects {
         options.release.set(11)
     }
 
-    tasks.withType<KotlinCompile> {
-        kotlinOptions {
-            jvmTarget = "11"
+    tasks.withType<KotlinCompile>().configureEach {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_11)
         }
     }
 
@@ -52,10 +52,11 @@ subprojects {
     apply(plugin = "maven-publish")
     apply(plugin = "java")
 
+    // `plugins.withType<KotlinPluginWrapper>` runs with the plugin as receiver, not Project — use `project.dependencies`.
     plugins.withType<KotlinPluginWrapper> {
         apply(plugin = "org.jmailen.kotlinter")
 
-        dependencies {
+        project.dependencies {
             implementation(libs.inlineLogger)
             implementation(libs.guava) {
                 exclude("com.google.code.findbugs", "jsr305")
@@ -110,7 +111,7 @@ subprojects {
 
         repositories {
             maven {
-                url = uri("E:\\RSPS\\OpenRune\\hosting")
+                url = uri("D:\\OpenRune\\openrune-hosting")
             }
         }
     }

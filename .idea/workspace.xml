@@ -5,14 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3b53bf3b-f6c6-4a48-9cc1-ade53d0bbd69" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/codeStyles/Project.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/codeStyles/codeStyleConfig.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build.gradle.kts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/clientscript-compiler/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/clientscript-compiler/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/clientscript-compiler/src/main/kotlin/me/filby/neptune/clientscript/compiler/ClientScriptCompilerApplication.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/gradle/libs.versions.toml" beforeDir="false" afterPath="$PROJECT_DIR$/gradle/libs.versions.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/clientscript-compiler/src/main/kotlin/dev/openrune/clientscript/compiler/ClientScriptLogLevel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/clientscript-compiler/src/main/kotlin/dev/openrune/clientscript/compiler/ClientScriptLogLevel.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/clientscript-compiler/src/main/kotlin/dev/openrune/clientscript/compiler/ClientScripts.kt" beforeDir="false" afterPath="$PROJECT_DIR$/clientscript-compiler/src/main/kotlin/dev/openrune/clientscript/compiler/ClientScripts.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/clientscript-compiler/src/main/kotlin/dev/openrune/clientscript/compiler/OpenRuneScriptWriter.kt" beforeDir="false" afterPath="$PROJECT_DIR$/clientscript-compiler/src/main/kotlin/dev/openrune/clientscript/compiler/OpenRuneScriptWriter.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/gradle/wrapper/gradle-wrapper.properties" beforeDir="false" afterPath="$PROJECT_DIR$/gradle/wrapper/gradle-wrapper.properties" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/settings.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/settings.gradle.kts" afterDir="false" />
     </list>
@@ -48,13 +45,12 @@
                 <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
                 <item name="neptune" type="f1a62948:ProjectNode" />
                 <item name="Tasks" type="e4a08cd1:TasksNode" />
-                <item name="build" type="c8890929:TasksNode$1" />
+                <item name="publishing" type="c8890929:TasksNode$1" />
               </path>
               <path>
                 <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
                 <item name="neptune" type="f1a62948:ProjectNode" />
-                <item name="Tasks" type="e4a08cd1:TasksNode" />
-                <item name="publishing" type="c8890929:TasksNode$1" />
+                <item name="Run Configurations" type="7b0102dc:RunConfigurationsNode" />
               </path>
             </expand>
             <select />
@@ -66,6 +62,7 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GradleScriptDefinitionsStorage" workingDir="$PROJECT_DIR$" gradleHome="C:\Users\chris\.gradle\wrapper\dists\gradle-8.10.2-all\7iv73wktx1xtkvlq19urqw1wm\gradle-8.10.2" javaHome="C:\Users\chris\.jdks\temurin-11.0.29" gradleVersion="8.10.2" />
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 5
 }</component>
@@ -94,28 +91,6 @@
   }
 }</component>
   <component name="RunManager" selected="Gradle.neptune [publishToMavenLocal]">
-    <configuration name="neptune [generatePomFileForMavenJavaPublication]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
-      <ExternalSystemSettings>
-        <option name="executionName" />
-        <option name="externalProjectPath" value="$PROJECT_DIR$" />
-        <option name="externalSystemIdString" value="GRADLE" />
-        <option name="scriptParameters" />
-        <option name="taskDescriptions">
-          <list />
-        </option>
-        <option name="taskNames">
-          <list>
-            <option value="generatePomFileForMavenJavaPublication" />
-          </list>
-        </option>
-        <option name="vmOptions" />
-      </ExternalSystemSettings>
-      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
-      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
-      <DebugAllEnabled>false</DebugAllEnabled>
-      <RunAsTest>false</RunAsTest>
-      <method v="2" />
-    </configuration>
     <configuration name="neptune [publishAllPublicationsToMavenRepository]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
       <ExternalSystemSettings>
         <option name="executionName" />
@@ -128,6 +103,28 @@
         <option name="taskNames">
           <list>
             <option value="publishAllPublicationsToMavenRepository" />
+          </list>
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>false</RunAsTest>
+      <method v="2" />
+    </configuration>
+    <configuration name="neptune [publishMavenJavaPublicationToMavenLocal]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list>
+            <option value="publishMavenJavaPublicationToMavenLocal" />
           </list>
         </option>
         <option name="vmOptions" />
@@ -208,9 +205,9 @@
       <list>
         <item itemvalue="Gradle.neptune [publishToMavenLocal]" />
         <item itemvalue="Gradle.neptune [publishMavenJavaPublicationToMavenRepository]" />
+        <item itemvalue="Gradle.neptune [publishMavenJavaPublicationToMavenLocal]" />
         <item itemvalue="Gradle.neptune [publishAllPublicationsToMavenRepository]" />
         <item itemvalue="Gradle.neptune [publish]" />
-        <item itemvalue="Gradle.neptune [generatePomFileForMavenJavaPublication]" />
       </list>
     </recent_temporary>
   </component>

@@ -7,8 +7,8 @@ enum class ClientScriptLogLevel {
     INFO,
     DEBUG,
     TRACE,
-    ALL;
+    ALL,
+    ;
 
     override fun toString(): String = name.lowercase()
-
 }

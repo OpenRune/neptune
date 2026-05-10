@@ -8,9 +8,9 @@ import me.filby.neptune.runescript.compiler.codegen.script.RuneScript
 import java.io.ByteArrayOutputStream
 
 data class ScriptEntry(
-    val id : Int,
-    val archiveName : String,
-    val bytes : ByteArray
+    val id: Int,
+    val archiveName: String,
+    val bytes: ByteArray,
 )
 
 /**

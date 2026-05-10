@@ -23,10 +23,14 @@ private val logger = InlineLogger()
 
 object ClientScripts {
 
-    fun compileTask(configPath : Path, clientVersion : Int,clientScriptLogLevel: ClientScriptLogLevel = ClientScriptLogLevel.INFO): MutableList<ScriptEntry> {
+    fun compileTask(
+        configPath: Path,
+        clientVersion: Int,
+        clientScriptLogLevel: ClientScriptLogLevel = ClientScriptLogLevel.INFO,
+    ): MutableList<ScriptEntry> {
         configureLogLevel(clientScriptLogLevel.toString())
 
-        val config = loadConfig(configPath,clientVersion)
+        val config = loadConfig(configPath, clientVersion)
 
         val basePath = configPath.absolute().parent
         val sourcePaths = config.sourcePaths.map { basePath.resolve(it) }
@@ -65,7 +69,7 @@ private fun configureLogLevel(levelName: String) {
     root.level = level
 }
 
-private fun loadConfig(configPath: Path, clientVersion : Int): ClientScriptCompilerConfig {
+private fun loadConfig(configPath: Path, clientVersion: Int): ClientScriptCompilerConfig {
     if (configPath.notExists()) {
         logger.error { "Unable to locate configuration file: $configPath." }
         exitProcess(1)
@@ -78,6 +82,7 @@ private fun loadConfig(configPath: Path, clientVersion : Int): ClientScriptCompi
         prefixPostfixExpressions = false,
         arraysV2 = clientVersion >= 231,
         simplifiedTypeCodes = clientVersion >= 231,
+        longSupport = clientVersion >= 237,
     )
     val tomlMapper = tomlMapper {
         // these defaults are required for
@@ -126,7 +131,6 @@ private fun getDefaultFeaturesForVersion(versionProperty: TomlValue?): ClientScr
         longSupport = version >= 237,
     )
 }
-
 
 private fun loadSpecialSymbols(symbolsPaths: List<Path>, mapper: SymbolMapper) {
     for (symbolPath in symbolsPaths) {
