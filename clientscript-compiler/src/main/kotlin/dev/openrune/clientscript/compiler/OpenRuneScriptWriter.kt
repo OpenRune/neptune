@@ -6,6 +6,7 @@ import me.filby.neptune.clientscript.compiler.configuration.ClientScriptCompiler
 import me.filby.neptune.clientscript.compiler.writer.BinaryScriptWriter
 import me.filby.neptune.runescript.compiler.codegen.script.RuneScript
 import java.io.ByteArrayOutputStream
+import java.nio.file.Path
 
 data class ScriptEntry(
     val id: Int,
@@ -18,9 +19,11 @@ data class ScriptEntry(
  */
 class OpenRuneScriptWriter(
     idProvider: IdProvider,
+    sourcePaths: List<Path>,
+    debugMode: DebugMode,
     features: ClientScriptCompilerFeatureSet,
     allocator: ByteBufAllocator = ByteBufAllocator.DEFAULT,
-) : BinaryScriptWriter(idProvider, features, allocator) {
+) : BinaryScriptWriter(idProvider, sourcePaths,debugMode,features, allocator) {
 
     val scripts = emptyList<ScriptEntry>().toMutableList()
 
