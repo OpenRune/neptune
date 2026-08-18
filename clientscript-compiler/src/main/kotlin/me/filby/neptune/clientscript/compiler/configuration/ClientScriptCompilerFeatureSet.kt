@@ -9,4 +9,6 @@ data class ClientScriptCompilerFeatureSet(
     override val arraysV2: Boolean,
     override val simplifiedTypeCodes: Boolean,
     val longSupport: Boolean,
+    override val foldJoinedStringConstants: Boolean,
+    override val stringTemplates: Boolean,
 ) : CompilerFeatureSet

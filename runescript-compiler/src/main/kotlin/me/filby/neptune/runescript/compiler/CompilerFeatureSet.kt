@@ -7,4 +7,6 @@ public interface CompilerFeatureSet {
     public val prefixPostfixExpressions: Boolean
     public val arraysV2: Boolean
     public val simplifiedTypeCodes: Boolean
+    public val foldJoinedStringConstants: Boolean
+    public val stringTemplates: Boolean
 }

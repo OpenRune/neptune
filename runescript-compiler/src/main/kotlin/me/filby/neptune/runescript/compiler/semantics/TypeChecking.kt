@@ -46,6 +46,7 @@ import me.filby.neptune.runescript.ast.statement.ReturnStatement
 import me.filby.neptune.runescript.ast.statement.SwitchCase
 import me.filby.neptune.runescript.ast.statement.SwitchStatement
 import me.filby.neptune.runescript.ast.statement.WhileStatement
+import me.filby.neptune.runescript.compiler.CompilerBuiltins
 import me.filby.neptune.runescript.compiler.CompilerFeatureSet
 import me.filby.neptune.runescript.compiler.ParserErrorListener
 import me.filby.neptune.runescript.compiler.configuration.command.DynamicCommandHandler
@@ -73,7 +74,6 @@ import me.filby.neptune.runescript.compiler.trigger.TriggerManager
 import me.filby.neptune.runescript.compiler.trigger.TriggerType
 import me.filby.neptune.runescript.compiler.type
 import me.filby.neptune.runescript.compiler.type.MetaType
-import me.filby.neptune.runescript.compiler.type.PrimitiveType
 import me.filby.neptune.runescript.compiler.type.TupleType
 import me.filby.neptune.runescript.compiler.type.Type
 import me.filby.neptune.runescript.compiler.type.TypeManager
@@ -98,6 +98,7 @@ public class TypeChecking(
     private val dynamicCommands: MutableMap<String, DynamicCommandHandler>,
     private val diagnostics: Diagnostics,
     private val features: CompilerFeatureSet,
+    private val builtins: CompilerBuiltins,
 ) : AstVisitor<Unit> {
     // var Expression.type: Type
     //     get() = getAttribute<Type>("type") ?: error("type not set")
@@ -125,6 +126,33 @@ public class TypeChecking(
      * The trigger that represents `label`. This trigger is optional.
      */
     private val labelTrigger = triggerManager.findOrNull("label")
+
+    /**
+     * Array of valid types allowed in logical conditional expressions.
+     */
+    private val allowedLogicalTypes = arrayOf(builtins.boolean)
+
+    /**
+     * Array of valid types allowed in relational conditional expressions.
+     */
+    private val allowedRelationalTypes = arrayOf(builtins.int, builtins.long)
+
+    /**
+     * Array of valid types allowed in arithmetic expressions.
+     */
+    private val allowedArithmeticTypes = arrayOf(builtins.int, builtins.long)
+
+    /**
+     * Set of types that have a literal representation.
+     */
+    private val literalTypes = setOf(
+        builtins.int,
+        builtins.boolean,
+        builtins.coordgrid,
+        builtins.string,
+        builtins.char,
+        builtins.long,
+    )
 
     /**
      * The current table. This is updated each time when entering a new script or block.
@@ -206,7 +234,7 @@ public class TypeChecking(
      */
     private fun checkCondition(expression: Expression) {
         // type hint and visit condition
-        expression.typeHint = PrimitiveType.BOOLEAN
+        expression.typeHint = builtins.boolean
 
         // attempts to find the first expression that isn't a binary expression or parenthesis expression
         val invalidExpression = findInvalidConditionExpression(expression)
@@ -214,7 +242,7 @@ public class TypeChecking(
             // visit expression and type check it, we don't visit outside this because we don't want
             // to report type mismatches AND invalid conditions at the same time.
             expression.visit()
-            checkTypeMatch(expression, PrimitiveType.BOOLEAN, expression.type)
+            checkTypeMatch(expression, builtins.boolean, expression.type)
         } else {
             // report invalid condition expression on the erroneous node.
             invalidExpression.reportError(DiagnosticMessage.CONDITION_INVALID_NODE_TYPE)
@@ -397,9 +425,9 @@ public class TypeChecking(
 
         // visit the initializer if it exists to resolve references in it
         val initializer = arrayDeclarationStatement.initializer
-        initializer.typeHint = PrimitiveType.INT
+        initializer.typeHint = builtins.int
         initializer.visit()
-        checkTypeMatch(initializer, PrimitiveType.INT, initializer.type)
+        checkTypeMatch(initializer, builtins.int, initializer.type)
 
         // attempt to insert the local variable into the symbol table and display error if failed to insert
         val symbol = LocalVariableSymbol(name, type)
@@ -469,7 +497,7 @@ public class TypeChecking(
         }
 
         // conditions expect boolean
-        conditionExpression.type = PrimitiveType.BOOLEAN
+        conditionExpression.type = builtins.boolean
     }
 
     /**
@@ -478,29 +506,12 @@ public class TypeChecking(
     private fun checkBinaryConditionOperation(left: Expression, operator: Token, right: Expression): Boolean {
         // some operators expect a specific type on both sides, specify those type(s) here
         val allowedTypes = when (operator.text) {
-            "&", "|" -> ALLOWED_LOGICAL_TYPES
-            "<", ">", "<=", ">=" -> ALLOWED_RELATIONAL_TYPES
+            "&", "|" -> allowedLogicalTypes
+            "<", ">", "<=", ">=" -> allowedRelationalTypes
             else -> null
         }
 
-        // if required type is set we should type hint with those, otherwise use the opposite
-        // sides type as a hint.
-        if (allowedTypes != null) {
-            left.typeHint = allowedTypes.first()
-            right.typeHint = allowedTypes.first()
-        } else {
-            // assign the type hints using the opposite side if it isn't already assigned.
-            left.typeHint = if (left.typeHint != null) left.typeHint else right.nullableType
-            right.typeHint = if (right.typeHint != null) right.typeHint else left.nullableType
-        }
-
-        // TODO better logic for this to allow things such as 'if (null ! $var)', should also revisit the above
-        // visit left side to get the type for hinting to the right side if needed
-        left.visit()
-
-        // type hint right if not already hinted to the left type and then visit
-        right.typeHint = right.typeHint ?: left.type
-        right.visit()
+        visitHintedPair(left, right)
 
         // verify the left and right type only return 1 type that is not 'unit'.
         if (left.type is TupleType || right.type is TupleType) {
@@ -546,7 +557,7 @@ public class TypeChecking(
                 right.type.representation,
             )
             return false
-        } else if (left.type == PrimitiveType.STRING && right.type == PrimitiveType.STRING) {
+        } else if (left.type == builtins.string && right.type == builtins.string) {
             operator.reportError(
                 DiagnosticMessage.BINOP_INVALID_TYPES,
                 operator.text,
@@ -565,26 +576,22 @@ public class TypeChecking(
         val right = arithmeticExpression.right
         val operator = arithmeticExpression.operator
 
-        // arithmetic expression only expect int or long return types, but just allow
-        val expectedType = when (val hint = arithmeticExpression.typeHint) {
-            null -> PrimitiveType.INT
-            else -> hint
+        val hint = arithmeticExpression.typeHint
+        if (hint != null) {
+            left.typeHint = hint
+            left.visit()
+
+            right.typeHint = hint
+            right.visit()
+        } else {
+            visitHintedPair(left, right)
         }
-
-        // visit left-hand side
-        left.typeHint = expectedType
-        left.visit()
-
-        // visit right-hand side
-        right.typeHint = expectedType
-        right.visit()
 
         // verify if both sides are int or long and are of the same type
         if (
-            !checkTypeMatchAny(left, ALLOWED_ARITHMETIC_TYPES, left.type) ||
-            !checkTypeMatchAny(left, ALLOWED_ARITHMETIC_TYPES, right.type) ||
-            !checkTypeMatch(left, expectedType, left.type, reportError = false) ||
-            !checkTypeMatch(right, expectedType, right.type, reportError = false)
+            !checkTypeMatchAny(left, allowedArithmeticTypes, left.type) ||
+            !checkTypeMatchAny(left, allowedArithmeticTypes, right.type) ||
+            !checkTypeMatch(left, left.type, right.type, reportError = false)
         ) {
             operator.reportError(
                 DiagnosticMessage.BINOP_INVALID_TYPES,
@@ -596,19 +603,46 @@ public class TypeChecking(
             return
         }
 
-        arithmeticExpression.type = expectedType
+        arithmeticExpression.type = left.type
+    }
+
+    private fun visitHintedPair(left: Expression, right: Expression) {
+        // visit the side with a concrete type first so it can hint the other.
+        // if neither has a concrete type, left visits first by default.
+        if (left.hasConcreteType() || !right.hasConcreteType()) {
+            left.visit()
+            right.typeHint = left.type
+            right.visit()
+        } else {
+            right.visit()
+            left.typeHint = right.type
+            left.visit()
+        }
+    }
+
+    private fun Expression.hasConcreteType(): Boolean = when (this) {
+        is CommandCallExpression -> true
+        is ProcCallExpression -> true
+        is ConditionExpression -> true
+        is ArithmeticExpression -> left.hasConcreteType() || right.hasConcreteType()
+        is GameVariableExpression -> true
+        is LocalVariableExpression -> true
+        is JoinedStringExpression -> true
+        is StringLiteral -> true
+        is CharacterLiteral -> true
+        is CoordLiteral -> true
+        is ParenthesizedExpression -> expression.hasConcreteType()
+        else -> false
     }
 
     override fun visitCalcExpression(calcExpression: CalcExpression) {
-        val typeHint = calcExpression.typeHint ?: PrimitiveType.INT
         val innerExpression = calcExpression.expression
 
-        // hint to the expression that we expect an int
-        innerExpression.typeHint = typeHint
+        innerExpression.typeHint = calcExpression.typeHint
         innerExpression.visit()
 
         // verify type is an int
-        if (!checkTypeMatchAny(innerExpression, ALLOWED_ARITHMETIC_TYPES, innerExpression.type)) {
+        if (!checkTypeMatchAny(innerExpression, allowedArithmeticTypes, innerExpression.type)) {
             innerExpression.reportError(DiagnosticMessage.ARITHMETIC_INVALID_TYPE, innerExpression.type.representation)
             calcExpression.type = MetaType.Error
         } else {
@@ -815,8 +849,9 @@ public class TypeChecking(
         val indexExpression = localVariableExpression.index
         if (symbol.type is ArrayType && indexExpression != null) {
             // visit the index to set the type of any references
+            indexExpression.typeHint = builtins.int
             indexExpression.visit()
-            checkTypeMatch(indexExpression, PrimitiveType.INT, indexExpression.type)
+            checkTypeMatch(indexExpression, builtins.int, indexExpression.type)
 
             // we are referring to a specific index within an array variable, so we need to
             // return the element type instead of the array type itself.
@@ -885,7 +920,7 @@ public class TypeChecking(
 
             // check if the expected type is a string type
             val graphicType = typeManager.findOrNull("graphic")
-            val stringExpected = typeHint == PrimitiveType.STRING || graphicType != null && typeHint == graphicType
+            val stringExpected = typeHint == builtins.string || graphicType != null && typeHint == graphicType
 
             // attempt to parse the constant value
             val parsedExpression = if (stringExpected) {
@@ -938,31 +973,31 @@ public class TypeChecking(
         val hint = integerLiteral.typeHint
 
         // allow number value to be implicitly converted to a string
-        if (hint == PrimitiveType.STRING) {
-            integerLiteral.type = PrimitiveType.STRING
+        if (hint == builtins.string) {
+            integerLiteral.type = builtins.string
             return
         }
 
         // allow 0 and 1 to be implicitly converted to boolean
-        if (hint == PrimitiveType.BOOLEAN && isBooleanCompatible(integerLiteral.value, integerLiteral.radix)) {
+        if (hint == builtins.boolean && isBooleanCompatible(integerLiteral.value, integerLiteral.radix)) {
             // we can just convert the value to an int safely since we know the value is 0 or 1.
             integerLiteral.numberValue = integerLiteral.value.toInt()
-            integerLiteral.type = PrimitiveType.BOOLEAN
+            integerLiteral.type = builtins.boolean
             return
         }
 
         // allow number value to be a reference to a non-number type
-        if (hint != null && hint != MetaType.Error && hint != MetaType.Unit && hint !in LITERAL_TYPES) {
+        if (hint != null && hint != MetaType.Error && hint != MetaType.Unit && hint !in literalTypes) {
             integerLiteral.reference = resolveSymbol(integerLiteral, integerLiteral.value, hint)
             return
         }
 
         val type = when (hint) {
-            PrimitiveType.INT -> PrimitiveType.INT
-            PrimitiveType.LONG -> PrimitiveType.LONG
+            builtins.int -> builtins.int
+            builtins.long -> builtins.long
             else -> {
                 // we default to int to give a safe fallback when the hint is invalid.
-                PrimitiveType.INT
+                builtins.int
             }
         }
 
@@ -991,12 +1026,12 @@ public class TypeChecking(
      * and then converted back to the signed target type.
      */
     private fun parseNumericValue(value: String, radix: Int, type: Type): Number? = when (type) {
-        PrimitiveType.INT -> if (radix == IntegerLiteral.RADIX_DECIMAL) {
+        builtins.int -> if (radix == IntegerLiteral.RADIX_DECIMAL) {
             value.toIntOrNull(radix)
         } else {
             value.toUIntOrNull(radix)?.toInt()
         }
-        PrimitiveType.LONG -> if (radix == IntegerLiteral.RADIX_DECIMAL) {
+        builtins.long -> if (radix == IntegerLiteral.RADIX_DECIMAL) {
             value.toLongOrNull(radix)
         } else {
             value.toULongOrNull(radix)?.toLong()
@@ -1005,21 +1040,21 @@ public class TypeChecking(
     }
 
     override fun visitCoordLiteral(coordLiteral: CoordLiteral) {
-        coordLiteral.type = PrimitiveType.COORD
+        coordLiteral.type = builtins.coordgrid
     }
 
     override fun visitBooleanLiteral(booleanLiteral: BooleanLiteral) {
         val hint = booleanLiteral.typeHint
 
-        if (hint == PrimitiveType.STRING) {
-            booleanLiteral.type = PrimitiveType.STRING
+        if (hint == builtins.string) {
+            booleanLiteral.type = builtins.string
         } else {
-            booleanLiteral.type = PrimitiveType.BOOLEAN
+            booleanLiteral.type = builtins.boolean
         }
     }
 
     override fun visitCharacterLiteral(characterLiteral: CharacterLiteral) {
-        characterLiteral.type = PrimitiveType.CHAR
+        characterLiteral.type = builtins.char
     }
 
     override fun visitNullLiteral(nullLiteral: NullLiteral) {
@@ -1028,7 +1063,8 @@ public class TypeChecking(
             nullLiteral.type = hint
             return
         }
-        nullLiteral.type = PrimitiveType.INT
+        nullLiteral.type = MetaType.Error
+        nullLiteral.reportError(DiagnosticMessage.NULL_AMBIGUOUS)
     }
 
     override fun visitStringLiteral(stringLiteral: StringLiteral) {
@@ -1041,17 +1077,17 @@ public class TypeChecking(
         //    reference a symbol via quoting it, this enables the ability to
         //    reference a symbol without it being a valid identifier.
 
-        if (hint == null || typeManager.check(hint, PrimitiveType.STRING)) {
+        if (hint == null || typeManager.check(hint, builtins.string)) {
             // early check if string is assignable to hint
             // this mostly exists for when the expected type is `any`, we just
             // treat it as a string
-            stringLiteral.type = PrimitiveType.STRING
+            stringLiteral.type = builtins.string
         } else if (hint is MetaType.Hook) {
             handleClientScriptExpression(stringLiteral, hint)
-        } else if (hint !in LITERAL_TYPES) {
+        } else if (hint !in literalTypes) {
             stringLiteral.reference = resolveSymbol(stringLiteral, stringLiteral.value, hint)
         } else {
-            stringLiteral.type = PrimitiveType.STRING
+            stringLiteral.type = builtins.string
         }
     }
 
@@ -1093,16 +1129,16 @@ public class TypeChecking(
     override fun visitJoinedStringExpression(joinedStringExpression: JoinedStringExpression) {
         // visit the parts
         joinedStringExpression.parts.visit()
-        joinedStringExpression.type = PrimitiveType.STRING
+        joinedStringExpression.type = builtins.string
     }
 
     override fun visitJoinedStringPart(stringPart: StringPart) {
         if (stringPart is ExpressionStringPart) {
             // typehint, visit, check the inner expression
             val expression = stringPart.expression
-            expression.typeHint = PrimitiveType.STRING
+            expression.typeHint = builtins.string
             expression.visit()
-            checkTypeMatch(expression, PrimitiveType.STRING, expression.type)
+            checkTypeMatch(expression, builtins.string, expression.type)
         }
     }
 
@@ -1161,7 +1197,7 @@ public class TypeChecking(
 
         // since only increment/decrement is allowed, we need to check if the
         // expression type is an arithmetic allowed type
-        if (!checkTypeMatchAny(variable, ALLOWED_ARITHMETIC_TYPES, variable.type)) {
+        if (!checkTypeMatchAny(variable, allowedArithmeticTypes, variable.type)) {
             variable.reportError(
                 DiagnosticMessage.FIX_OPERATOR_INVALID_TYPE,
                 if (fixExpression.isPrefix) "Prefix" else "Postfix",
@@ -1201,9 +1237,9 @@ public class TypeChecking(
             }
         }
 
-        if (allowToString && hint == PrimitiveType.STRING && allowStringConversion(symbol)) {
+        if (allowToString && hint == builtins.string && allowStringConversion(symbol)) {
             // treat the identifier as just a string
-            node.type = PrimitiveType.STRING
+            node.type = builtins.string
             return null
         } else if (symbol == null) {
             // unable to resolve the symbol
@@ -1394,41 +1430,6 @@ public class TypeChecking(
     }
 
     private companion object {
-        /**
-         * Array of valid types allowed in logical conditional expressions.
-         */
-        private val ALLOWED_LOGICAL_TYPES = arrayOf(
-            PrimitiveType.BOOLEAN,
-        )
-
-        /**
-         * Array of valid types allowed in relational conditional expressions.
-         */
-        private val ALLOWED_RELATIONAL_TYPES = arrayOf(
-            PrimitiveType.INT,
-            PrimitiveType.LONG,
-        )
-
-        /**
-         * Array of valid types allowed in arithmetic expressions.
-         */
-        private val ALLOWED_ARITHMETIC_TYPES = arrayOf(
-            PrimitiveType.INT,
-            PrimitiveType.LONG,
-        )
-
-        /**
-         * Set of types that have a literal representation.
-         */
-        private val LITERAL_TYPES = setOf(
-            PrimitiveType.INT,
-            PrimitiveType.BOOLEAN,
-            PrimitiveType.COORD,
-            PrimitiveType.STRING,
-            PrimitiveType.CHAR,
-            PrimitiveType.LONG,
-        )
-
         /**
          * A parser error listener that discards any syntax errors.
          */

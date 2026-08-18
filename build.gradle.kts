@@ -14,7 +14,7 @@ plugins {
 allprojects {
 
     group = "me.filby"
-    version = "0.0.5-openrune"
+    version = "0.0.6-openrune"
 
     // Keep Kotlin stdlib aligned with the Kotlin Gradle plugin (1.9.x). Transitive deps
     // (e.g. Clikt) may pull a newer stdlib whose metadata Kotlin 1.9 cannot read.
