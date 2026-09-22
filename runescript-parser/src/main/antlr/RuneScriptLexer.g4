@@ -82,6 +82,9 @@ STRING_TAG          : '<' Tag ('=' ~('<' | '>')+)? '>' ;
 STRING_CLOSE_TAG    : '</' Tag '>' ;
 STRING_PARTIAL_TAG  : '<' Tag '=' ;
 STRING_P_TAG        : '<p,' ~('<' | '>')+ '>'  ;
+// '<switch,pronoun,"<str_he>","<str_she>","">' - a client tag whose arguments are quoted strings that
+// may themselves contain tags, so unlike the other tags its body allows escapes and nested tags.
+STRING_SWITCH_TAG   : '<switch,' (StringEscapeSequence | '<' Tag '>' | ~('\\' | '"' | '<' | '>' | '\r' | '\n'))* '>' ;
 STRING_EXPR_START   : '<' -> pushMode(DEFAULT_MODE) ;
 STRING_EXPR_END     : '>' ;
 STRING_TEMPLATE     : {stringTemplates}? '<text_pronoun(' ~[<>\r\n]* ')>' ;
@@ -95,6 +98,9 @@ fragment StringEscapeSequence
 fragment Tag
     : 'br'
     | 'col'
+    // longer alternatives first so '<str_he>' is not read as the 'str' tag
+    | 'str_he'
+    | 'str_she'
     | 'str'
     | 'shad'
     | 'u'

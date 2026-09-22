@@ -325,6 +325,11 @@ public class AstBuilder(private val source: String, private val lineOffset: Int,
                 is StringPTagContext -> {
                     parts += PTagStringPart(child.location, child.text)
                 }
+                is RuneScriptParser.StringSwitchTagContext -> {
+                    // unlike the other tags a switch tag's body may contain escapes, and the client
+                    // expects the unescaped text
+                    parts += BasicStringPart(child.location, child.text.unescape())
+                }
                 is RuneScriptParser.StringTemplateContext -> {
                     parts += StringTemplateStringPart(child.location, child.text)
                 }

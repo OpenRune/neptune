@@ -231,7 +231,6 @@ public open class ScriptCompiler(
         val fileNodes = mutableListOf<ScriptFile>()
         var fileCount = 0
         for (sourcePath in sourcePaths) {
-            logger.info { "Parsing files in $sourcePath" }
             // iterate over all folders and files in the source path
             for (file in sourcePath.toFile().walkTopDown()) {
                 // TODO ability to configure file extension
