@@ -12,6 +12,8 @@ data class ScriptEntry(
     val id: Int,
     val archiveName: String,
     val bytes: ByteArray,
+    /** A library script written again because a symbol it references was renumbered. */
+    val library: Boolean = false,
 )
 
 /**

@@ -14,7 +14,7 @@ plugins {
 allprojects {
 
     group = "me.filby"
-    version = "0.0.6-openrune"
+    version = "0.0.7-openrune"
 
     // Keep Kotlin stdlib aligned with the Kotlin Gradle plugin (1.9.x). Transitive deps
     // (e.g. Clikt) may pull a newer stdlib whose metadata Kotlin 1.9 cannot read.
@@ -60,6 +60,17 @@ allprojects {
 
     tasks.withType<Test> {
         useJUnitPlatform()
+        // The packer runs without -ea, and several command handlers build one-element TupleTypes
+        // that only TupleType's own assert objects to. Keep tests on the same footing.
+        enableAssertions = false
+        // A full OSRS script set is ~10k files; the default 512m test heap runs out mid type-check.
+        maxHeapSize = "4g"
+        System.getProperty("neptune.project")?.let {
+            systemProperty("neptune.project", it)
+            // the project on disk is the real input here, so never treat a rerun as up-to-date
+            outputs.upToDateWhen { false }
+        }
+        testLogging.showStandardStreams = true
     }
 
 }

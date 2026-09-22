@@ -50,10 +50,13 @@ object ClientScripts {
 
         // setup compiler and execute it
         val compiler = ClientScriptCompiler(sourcePaths, libraryPaths, writer, features, symbolPaths, mapper)
+        val libraryState = if (libraryPaths.isEmpty()) null else LibrarySymbolState(basePath.resolve(config.libraryStatePath), mapper)
+        compiler.libraryWritePolicy = libraryState
         compiler.setup()
         compiler.run()
 
-        return writer.scripts
+        val rewritten = libraryState?.rewritten.orEmpty()
+        return writer.scripts.mapTo(mutableListOf()) { it.copy(library = it.archiveName in rewritten) }
     }
 }
 
@@ -94,6 +97,7 @@ private fun loadConfig(configPath: Path,clientVersion : Int): ClientScriptCompil
             "symbols" to "symbolPaths",
             "libraries" to "libraryPaths",
             "excludes" to "excludePaths",
+            "library_state" to "libraryStatePath",
             "writer" to "writers",
         )
         mapping<ClientScriptCompilerFeatureSet>(

@@ -7,6 +7,7 @@ import me.filby.neptune.runescript.compiler.configuration.command.TypeCheckingCo
 import me.filby.neptune.runescript.compiler.type
 import me.filby.neptune.runescript.compiler.type.MetaType
 import me.filby.neptune.runescript.compiler.type.TupleType
+import me.filby.neptune.runescript.compiler.type.Type
 
 /**
  * An implementation of [DynamicCommandHandler] that adds support for type checking
@@ -29,10 +30,10 @@ class IfParamCommandHandler(private val cc: Boolean) : DynamicCommandHandler {
         }
 
         // define the expected types based on what is currently known
-        val expectedTypes = if (!cc) {
+        val expectedTypes: Type = if (!cc) {
             IF_BASE_EXPECTED_TYPES
         } else {
-            CC_BASE_EXPECTED_TYPES
+            ParamCommandHandler.PARAM_ANY
         }
 
         // compare the expected types with the actual types
@@ -57,6 +58,5 @@ class IfParamCommandHandler(private val cc: Boolean) : DynamicCommandHandler {
             ScriptVarType.COMPONENT,
             ScriptVarType.INT,
         )
-        val CC_BASE_EXPECTED_TYPES = TupleType(ParamCommandHandler.PARAM_ANY)
     }
 }

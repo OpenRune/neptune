@@ -17,6 +17,7 @@ import me.filby.neptune.runescript.compiler.type.MetaType
 import me.filby.neptune.runescript.compiler.type.TypeManager
 import me.filby.neptune.runescript.compiler.type.wrapped.ArrayType
 import me.filby.neptune.runescript.compiler.type.wrapped.WrappedType
+import me.filby.neptune.runescript.compiler.writer.LibraryWritePolicy
 import me.filby.neptune.runescript.compiler.writer.ScriptWriter
 import me.filby.neptune.runescript.parser.ScriptParser
 import java.nio.file.Path
@@ -78,6 +79,12 @@ public open class ScriptCompiler(
      * Called after every step with all diagnostics that were collected during it.
      */
     public var diagnosticsHandler: DiagnosticsHandler = DEFAULT_DIAGNOSTICS_HANDLER
+
+    /**
+     * Lets library scripts through to the writer when it says so. `null` keeps every
+     * library script out of the output.
+     */
+    public var libraryWritePolicy: LibraryWritePolicy? = null
 
     init {
         // register the core types
@@ -348,8 +355,11 @@ public open class ScriptCompiler(
             scriptWriter.use {
                 for (script in scripts) {
                     if (isLibrary(script.sourceName)) {
-                        logger.trace { "Skipping writing of library file: ${script.sourceName}" }
-                        continue
+                        if (libraryWritePolicy?.shouldWrite(script) != true) {
+                            logger.trace { "Skipping writing of library file: ${script.sourceName}" }
+                            continue
+                        }
+                        logger.info { "Writing library script ${script.fullName}: a symbol it uses was renumbered" }
                     }
 
                     val scriptWriteTimer = measureTimeMillis {
@@ -357,6 +367,7 @@ public open class ScriptCompiler(
                     }
                     logger.trace { "Wrote ${script.fullName} in ${scriptWriteTimer}ms" }
                 }
+                libraryWritePolicy?.finish()
             }
         }
         logger.debug { "Finished script writing in ${writingTime}ms" }

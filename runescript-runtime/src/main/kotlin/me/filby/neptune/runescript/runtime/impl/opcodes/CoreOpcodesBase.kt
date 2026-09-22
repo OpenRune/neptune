@@ -226,7 +226,7 @@ public open class CoreOpcodesBase<T : ScriptState>(
         // set up the gosub frame
         val frame = gosubStackFramePool.pop()
         frame.setup(this)
-        frames.addLast(frame)
+        frames.add(frame)
 
         // lookup the proc script by id and set up the state with the new script
         val proc = scriptProvider.get(id)
@@ -253,7 +253,7 @@ public open class CoreOpcodesBase<T : ScriptState>(
 
         // release all frames in the stack
         while (frames.isNotEmpty()) {
-            gosubStackFramePool.push(frames.removeLast())
+            gosubStackFramePool.push(frames.removeAt(frames.lastIndex))
         }
     }
 
@@ -292,7 +292,7 @@ public open class CoreOpcodesBase<T : ScriptState>(
             return
         }
 
-        val frame = frames.removeLast()
+        val frame = frames.removeAt(frames.lastIndex)
         script = frame.script
         pc = frame.pc
         intLocals = frame.intLocals
