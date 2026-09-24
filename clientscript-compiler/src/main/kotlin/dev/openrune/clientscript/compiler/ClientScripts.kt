@@ -13,6 +13,8 @@ import me.filby.neptune.clientscript.compiler.configuration.BinaryFileWriterConf
 import me.filby.neptune.clientscript.compiler.configuration.ClientScriptCompilerConfig
 import me.filby.neptune.clientscript.compiler.configuration.ClientScriptCompilerFeatureSet
 import me.filby.neptune.clientscript.compiler.writer.BinaryScriptWriter
+import me.filby.neptune.runescript.compiler.codegen.script.RuneScript
+import me.filby.neptune.runescript.compiler.writer.LibraryWritePolicy
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import kotlin.io.path.absolute
@@ -30,6 +32,12 @@ object ClientScripts {
         configPath: Path,
         clientVersion: Int,
         clientScriptLogLevel: ClientScriptLogLevel = ClientScriptLogLevel.INFO,
+        /**
+         * Write every library script on every compile instead of only those whose symbol ids changed
+         * since the last recorded baseline. Costs the full library write each build; sidesteps the
+         * baseline bookkeeping entirely.
+         */
+        rewriteAllLibraries: Boolean = false,
     ): MutableList<ScriptEntry> {
 
         configureLogLevel(clientScriptLogLevel.toString())
@@ -50,13 +58,33 @@ object ClientScripts {
 
         // setup compiler and execute it
         val compiler = ClientScriptCompiler(sourcePaths, libraryPaths, writer, features, symbolPaths, mapper)
-        val libraryState = if (libraryPaths.isEmpty()) null else LibrarySymbolState(basePath.resolve(config.libraryStatePath), mapper)
-        compiler.libraryWritePolicy = libraryState
+        val policy: LibraryWritePolicy? = when {
+            libraryPaths.isEmpty() -> null
+            rewriteAllLibraries -> WriteAllLibraries()
+            else -> LibrarySymbolState(basePath.resolve(config.libraryStatePath), mapper)
+        }
+        compiler.libraryWritePolicy = policy
         compiler.setup()
         compiler.run()
 
-        val rewritten = libraryState?.rewritten.orEmpty()
+        val rewritten = when (policy) {
+            is LibrarySymbolState -> policy.rewritten
+            is WriteAllLibraries -> policy.written
+            else -> emptySet()
+        }
         return writer.scripts.mapTo(mutableListOf()) { it.copy(library = it.archiveName in rewritten) }
+    }
+
+    /** Lets every library script through to the writer and remembers which ones those were. */
+    private class WriteAllLibraries : LibraryWritePolicy {
+        val written: MutableSet<String> = linkedSetOf()
+
+        override fun shouldWrite(script: RuneScript): Boolean {
+            written += script.fullName
+            return true
+        }
+
+        override fun finish() {}
     }
 }
 
