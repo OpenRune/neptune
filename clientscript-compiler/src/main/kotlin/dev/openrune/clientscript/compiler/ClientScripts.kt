@@ -1,29 +1,22 @@
-package me.filby.neptune.clientscript.compiler
+package dev.openrune.clientscript.compiler
 
 import cc.ekblad.toml.model.TomlValue
 import cc.ekblad.toml.serialization.from
 import cc.ekblad.toml.tomlMapper
+import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.LoggerContext
-import com.github.ajalt.clikt.core.CliktCommand
-import com.github.ajalt.clikt.core.context
-import com.github.ajalt.clikt.core.main
-import com.github.ajalt.clikt.output.MordantHelpFormatter
-import com.github.ajalt.clikt.parameters.options.default
-import com.github.ajalt.clikt.parameters.options.flag
-import com.github.ajalt.clikt.parameters.options.option
-import com.github.ajalt.clikt.parameters.types.choice
-import com.github.ajalt.clikt.parameters.types.path
 import com.github.michaelbull.logging.InlineLogger
 import com.github.michaelbull.logging.Logger
-import com.google.gson.GsonBuilder
+import me.filby.neptune.clientscript.compiler.ClientScriptCompiler
+import me.filby.neptune.clientscript.compiler.SymbolMapper
 import me.filby.neptune.clientscript.compiler.configuration.BinaryFileWriterConfig
 import me.filby.neptune.clientscript.compiler.configuration.ClientScriptCompilerConfig
 import me.filby.neptune.clientscript.compiler.configuration.ClientScriptCompilerFeatureSet
-import me.filby.neptune.clientscript.compiler.writer.BinaryFileScriptWriter
-import me.filby.neptune.clientscript.compiler.writer.BinaryScriptWriter.DebugMode
+import me.filby.neptune.clientscript.compiler.writer.BinaryScriptWriter
+import me.filby.neptune.runescript.compiler.codegen.script.RuneScript
+import me.filby.neptune.runescript.compiler.writer.LibraryWritePolicy
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
-import kotlin.io.path.Path
 import kotlin.io.path.absolute
 import kotlin.io.path.exists
 import kotlin.io.path.notExists
@@ -33,96 +26,93 @@ import kotlin.system.exitProcess
 private const val VERSION = "1.0.1-SNAPSHOT"
 private val logger = InlineLogger()
 
-class ClientScriptCommand : CliktCommand(name = "cs2") {
-    private val configPath by option("--config-path", help = "Path to the config file.")
-        .path(mustExist = true, canBeDir = false, mustBeReadable = true)
-        .default(Path("neptune.toml"))
+object ClientScripts {
 
-    private val print by option("--print", help = "Print the configuration and exit.")
-        .flag()
+    fun compileTask(
+        configPath: Path,
+        clientVersion: Int,
+        clientScriptLogLevel: ClientScriptLogLevel = ClientScriptLogLevel.INFO,
+        /**
+         * Write every library script on every compile instead of only those whose symbol ids changed
+         * since the last recorded baseline. Costs the full library write each build; sidesteps the
+         * baseline bookkeeping entirely.
+         */
+        rewriteAllLibraries: Boolean = false,
+    ): MutableList<ScriptEntry> {
 
-    private val logLevelName by option("--log-level", help = "Set the log level.")
-        .choice("off", "error", "warn", "info", "debug", "trace", "all", ignoreCase = true)
-        .default("info")
+        configureLogLevel(clientScriptLogLevel.toString())
 
-    private val version by option("--version", help = "Print the version of the compiler.")
-        .flag()
-
-    init {
-        context {
-            helpFormatter = { MordantHelpFormatter(it, showDefaultValues = true) }
-        }
-    }
-
-    override fun run() {
-        configureLogLevel(logLevelName)
-
-        if (version) {
-            echo("Neptune ClientScript 2 Compiler")
-            echo("Version $VERSION")
-            exitProcess(0)
-        }
-
-        val config = loadConfig(configPath)
-        if (print) {
-            val json = GsonBuilder()
-                .create()
-                .toJson(config)
-            println(json)
-            exitProcess(0)
-        }
+        val config = loadConfig(configPath, clientVersion)
 
         val basePath = configPath.absolute().parent
         val sourcePaths = config.sourcePaths.map { basePath.resolve(it) }
         val symbolPaths = config.symbolPaths.map { basePath.resolve(it) }
         val libraryPaths = config.libraryPaths.map { basePath.resolve(it) }
-        val (binaryWriterConfig) = config.writers
         val features = config.features
 
         val mapper = SymbolMapper()
-        val writer = if (binaryWriterConfig != null) {
-            val outputPath = basePath.resolve(binaryWriterConfig.outputPath)
-            BinaryFileScriptWriter(outputPath, mapper, sourcePaths, binaryWriterConfig.debugMode, features)
-        } else {
-            null
-        }
+        val writer = OpenRuneScriptWriter(mapper, sourcePaths, BinaryScriptWriter.DebugMode.FULL, features)
 
         // load commands and clientscript id mappings
         loadSpecialSymbols(symbolPaths, mapper)
 
         // setup compiler and execute it
         val compiler = ClientScriptCompiler(sourcePaths, libraryPaths, writer, features, symbolPaths, mapper)
+        val policy: LibraryWritePolicy? = when {
+            libraryPaths.isEmpty() -> null
+            rewriteAllLibraries -> WriteAllLibraries()
+            else -> LibrarySymbolState(basePath.resolve(config.libraryStatePath), mapper)
+        }
+        compiler.libraryWritePolicy = policy
         compiler.setup()
         compiler.run()
+
+        val rewritten = when (policy) {
+            is LibrarySymbolState -> policy.rewritten
+            is WriteAllLibraries -> policy.written
+            else -> emptySet()
+        }
+        return writer.scripts.mapTo(mutableListOf()) { it.copy(library = it.archiveName in rewritten) }
+    }
+
+    /** Lets every library script through to the writer and remembers which ones those were. */
+    private class WriteAllLibraries : LibraryWritePolicy {
+        val written: MutableSet<String> = linkedSetOf()
+
+        override fun shouldWrite(script: RuneScript): Boolean {
+            written += script.fullName
+            return true
+        }
+
+        override fun finish() {}
     }
 }
 
-fun main(args: Array<String>) = ClientScriptCommand().main(args)
 
 private fun configureLogLevel(levelName: String) {
     val context = LoggerFactory.getILoggerFactory() as LoggerContext
     val root = context.getLogger(Logger.ROOT_LOGGER_NAME)
     val level = when (levelName) {
-        "off" -> ch.qos.logback.classic.Level.OFF
-        "error" -> ch.qos.logback.classic.Level.ERROR
-        "warn" -> ch.qos.logback.classic.Level.WARN
-        "info" -> ch.qos.logback.classic.Level.INFO
-        "debug" -> ch.qos.logback.classic.Level.DEBUG
-        "trace" -> ch.qos.logback.classic.Level.TRACE
-        "all" -> ch.qos.logback.classic.Level.ALL
+        "off" -> Level.OFF
+        "error" -> Level.ERROR
+        "warn" -> Level.WARN
+        "info" -> Level.INFO
+        "debug" -> Level.DEBUG
+        "trace" -> Level.TRACE
+        "all" -> Level.ALL
         else -> error("Unknown log level: $levelName")
     }
     root.level = level
 }
 
-private fun loadConfig(configPath: Path): ClientScriptCompilerConfig {
+private fun loadConfig(configPath: Path,clientVersion : Int): ClientScriptCompilerConfig {
     if (configPath.notExists()) {
         logger.error { "Unable to locate configuration file: $configPath." }
         exitProcess(1)
     }
 
     val document = TomlValue.from(configPath)
-    val defaultFeatures = getDefaultFeaturesForVersion(document.properties["client_version"])
+    val defaultFeatures = getDefaultFeaturesForVersion(clientVersion)
     val tomlMapper = tomlMapper {
         // these defaults are required for
         //  1) if features is not defined at all
@@ -135,6 +125,7 @@ private fun loadConfig(configPath: Path): ClientScriptCompilerConfig {
             "symbols" to "symbolPaths",
             "libraries" to "libraryPaths",
             "excludes" to "excludePaths",
+            "library_state" to "libraryStatePath",
             "writer" to "writers",
         )
         mapping<ClientScriptCompilerFeatureSet>(
@@ -144,43 +135,24 @@ private fun loadConfig(configPath: Path): ClientScriptCompilerConfig {
             "arrays_v2" to "arraysV2",
             "simplified_type_codes" to "simplifiedTypeCodes",
             "long_support" to "longSupport",
-            "fold_joined_string_constants" to "foldJoinedStringConstants",
-            "string_templates" to "stringTemplates",
         )
-        mapping<BinaryFileWriterConfig>("output" to "outputPath", "debug" to "debugMode")
-
-        decoder { it: TomlValue.String ->
-            when (it.value) {
-                "none" -> DebugMode.NONE
-                "name" -> DebugMode.NAME
-                "full" -> DebugMode.FULL
-                else -> pass()
-            }
-        }
+        mapping<BinaryFileWriterConfig>("output" to "outputPath")
     }
     logger.info { "Loading configuration from $configPath." }
     return tomlMapper.decode<ClientScriptCompilerConfig>(document)
 }
 
-private fun getDefaultFeaturesForVersion(versionProperty: TomlValue?): ClientScriptCompilerFeatureSet {
-    val version = when (versionProperty) {
-        is TomlValue.Integer -> versionProperty.value.toInt()
-        null -> Integer.MIN_VALUE
-        else -> {
-            logger.error { "The 'client_version' value must be numeric." }
-            exitProcess(1)
-        }
-    }
+private fun getDefaultFeaturesForVersion(clientVersion: Int): ClientScriptCompilerFeatureSet {
 
     return ClientScriptCompilerFeatureSet(
-        dbFindReturnsCount = version >= 228,
-        ccCreateAssertNewArg = version >= 230,
+        dbFindReturnsCount = clientVersion >= 228,
+        ccCreateAssertNewArg = clientVersion >= 230,
         prefixPostfixExpressions = false,
-        arraysV2 = version >= 231,
-        simplifiedTypeCodes = version >= 231,
-        longSupport = version >= 237,
-        foldJoinedStringConstants = version >= 240,
-        stringTemplates = version >= 240,
+        arraysV2 = clientVersion >= 231,
+        simplifiedTypeCodes = clientVersion >= 231,
+        longSupport = clientVersion >= 237,
+        foldJoinedStringConstants = clientVersion >= 240,
+        stringTemplates = clientVersion >= 240,
     )
 }
 

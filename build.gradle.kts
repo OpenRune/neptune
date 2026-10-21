@@ -8,11 +8,29 @@ plugins {
     base
     kotlin("jvm")
     id("org.jmailen.kotlinter") apply false
+    id("maven-publish")
 }
 
 allprojects {
-    group = "me.filby.neptune"
-    version = "0.0.1-SNAPSHOT"
+
+    group = "me.filby"
+    version = "0.0.8-openrune"
+
+    // Keep Kotlin stdlib aligned with the Kotlin Gradle plugin (1.9.x). Transitive deps
+    // (e.g. Clikt) may pull a newer stdlib whose metadata Kotlin 1.9 cannot read.
+    configurations.configureEach {
+        resolutionStrategy.eachDependency {
+            if (requested.group != "org.jetbrains.kotlin") return@eachDependency
+            when (requested.name) {
+                "kotlin-stdlib",
+                "kotlin-stdlib-jdk7",
+                "kotlin-stdlib-jdk8",
+                "kotlin-stdlib-common",
+                "kotlin-reflect",
+                "kotlin-script-runtime" -> useVersion("1.9.0")
+            }
+        }
+    }
 
     plugins.withType<BasePlugin> {
         configure<BasePluginExtension> {
@@ -24,32 +42,48 @@ allprojects {
         configure<JavaPluginExtension> {
             withSourcesJar()
 
-            sourceCompatibility = JavaVersion.VERSION_17
-            targetCompatibility = JavaVersion.VERSION_17
+            sourceCompatibility = JavaVersion.VERSION_11
+            targetCompatibility = JavaVersion.VERSION_11
         }
     }
 
     tasks.withType<JavaCompile> {
         options.encoding = "UTF-8"
-        options.release.set(17)
+        options.release.set(11)
     }
 
-    tasks.withType<KotlinCompile> {
+    tasks.withType<KotlinCompile>().configureEach {
         compilerOptions {
-            jvmTarget = JvmTarget.JVM_17
+            jvmTarget.set(JvmTarget.JVM_11)
         }
     }
 
     tasks.withType<Test> {
         useJUnitPlatform()
+        // The packer runs without -ea, and several command handlers build one-element TupleTypes
+        // that only TupleType's own assert objects to. Keep tests on the same footing.
+        enableAssertions = false
+        // A full OSRS script set is ~10k files; the default 512m test heap runs out mid type-check.
+        maxHeapSize = "4g"
+        System.getProperty("neptune.project")?.let {
+            systemProperty("neptune.project", it)
+            // the project on disk is the real input here, so never treat a rerun as up-to-date
+            outputs.upToDateWhen { false }
+        }
+        testLogging.showStandardStreams = true
     }
+
 }
 
 subprojects {
+    apply(plugin = "maven-publish")
+    apply(plugin = "java")
+
+    // `plugins.withType<KotlinPluginWrapper>` runs with the plugin as receiver, not Project — use `project.dependencies`.
     plugins.withType<KotlinPluginWrapper> {
         apply(plugin = "org.jmailen.kotlinter")
 
-        dependencies {
+        project.dependencies {
             implementation(libs.inlineLogger)
             implementation(libs.guava) {
                 exclude("com.google.code.findbugs", "jsr305")
@@ -65,4 +99,48 @@ subprojects {
             testRuntimeOnly(libs.junit.engine)
         }
     }
+
+    publishing {
+        publications {
+            create<MavenPublication>("mavenJava") {
+                from(components["java"])
+
+                artifactId = project.name
+
+                pom {
+                    name.set("OpenRune - ${project.name}")
+                    description.set("Module ${project.name} of the OpenRune project.")
+                    url.set("https://github.com/OpenRune")
+
+                    licenses {
+                        license {
+                            name.set("Apache-2.0")
+                            url.set("https://opensource.org/licenses/Apache-2.0")
+                        }
+                    }
+
+                    developers {
+                        developer {
+                            id.set("openrune")
+                            name.set("OpenRune Team")
+                            email.set("contact@openrune.dev")
+                        }
+                    }
+
+                    scm {
+                        connection.set("scm:git:git://github.com/OpenRune.git")
+                        developerConnection.set("scm:git:ssh://github.com/OpenRune.git")
+                        url.set("https://github.com/OpenRune")
+                    }
+                }
+            }
+        }
+
+        repositories {
+            maven {
+                url = uri("C:\\Users\\home\\Desktop\\Programming\\Rsps\\OpenRune\\hosting")
+            }
+        }
+    }
+
 }

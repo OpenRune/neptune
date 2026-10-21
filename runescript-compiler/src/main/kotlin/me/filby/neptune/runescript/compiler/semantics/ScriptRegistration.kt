@@ -69,7 +69,7 @@ internal class ScriptRegistration(
 
     init {
         // init with a base table for the file
-        tables.addFirst(rootTable.createSubTable())
+        tables.add(0, rootTable.createSubTable())
     }
 
     /**
@@ -77,9 +77,9 @@ internal class ScriptRegistration(
      * out after the block is run.
      */
     private inline fun createScopedTable(crossinline block: () -> Unit) {
-        tables.addFirst(table.createSubTable())
+        tables.add(0, table.createSubTable())
         block()
-        tables.removeFirst()
+        tables.removeAt(0)
     }
 
     override fun visitScriptFile(scriptFile: ScriptFile) {

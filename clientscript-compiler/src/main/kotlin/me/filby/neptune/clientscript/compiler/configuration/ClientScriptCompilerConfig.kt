@@ -9,6 +9,7 @@ data class ClientScriptCompilerConfig(
     val symbolPaths: List<String> = listOf("symbols/"),
     val libraryPaths: List<String> = emptyList(),
     val excludePaths: List<String> = emptyList(),
+    val libraryStatePath: String = ".library-symbols",
     val writers: ClientScriptWriterConfig = ClientScriptWriterConfig(),
     val features: ClientScriptCompilerFeatureSet,
 )

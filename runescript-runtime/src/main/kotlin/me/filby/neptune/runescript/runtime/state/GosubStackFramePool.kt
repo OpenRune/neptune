@@ -11,7 +11,7 @@ public class GosubStackFramePool(initialCapacity: Int = 64, private val maxCapac
 
     init {
         repeat(initialCapacity) {
-            pool.addLast(GosubStackFrame())
+            pool.add(GosubStackFrame())
         }
     }
 
@@ -27,7 +27,7 @@ public class GosubStackFramePool(initialCapacity: Int = 64, private val maxCapac
         frame.reset()
 
         if (pool.size < maxCapacity) {
-            pool.addLast(frame)
+            pool.add(frame)
         }
     }
 }
